@@ -7,7 +7,7 @@ library(DescTools)
 # read data for real data example in Humberg et al 2020 Psychological Methods - 
 # Cubic Response Surface Analysis,
 # this file is partly based on the script illustration_Edwards1994_data.r
-# accompanying this article (hereafter cubic script)
+# accompanying this article (hereafter cubic script). See thus article for instructions on downloading mba_csv.csv
 
 ed <- read.csv2("mba_csv.csv")
 summary(ed) # 40 variables, no missing
