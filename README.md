@@ -14,5 +14,5 @@ Models with restricted cubic splines are recommended, and the code development w
 
 The development of RCA will start with models for data with independent observations, without cluster structures. Possible extension to clustered data may follow, but may not be easy or possible.
 
-Instructions for downloading the (so far) main example file mba_csv.csv, see the article The study of congruence in organizational behavior research: Critique and a proposed alternative) by 
+Instructions for downloading the (so far) main example data file mba_csv.csv, see the article The study of congruence in organizational behavior research: Critique and a proposed alternative) by 
 Jeffrey R. Edwards, 1994. Download files for this article in http://public.kenan-flagler.unc.edu/faculty/edwardsj/downloads.htm , and save the Excel file mba as a csv file mba_csv.csv with semicolon as deliminator, in the same folder as the R script script rca.r made available in this repo. The script is as present preliminary and under work.
