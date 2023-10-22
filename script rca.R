@@ -7,7 +7,7 @@ library(DescTools)
 # read data for real data example in Humberg et al 2020 Psychological Methods - 
 # Cubic Response Surface Analysis,
 # this file is partly based on the script illustration_Edwards1994_data.r
-# accompanying this article (hereafter cubic script). See thus article for instructions on downloading mba_csv.csv
+# accompanying this article (hereafter cubic script)
 
 ed <- read.csv2("mba_csv.csv")
 summary(ed) # 40 variables, no missing
@@ -33,9 +33,8 @@ lines(ed[cfull.MRACT.c.MRPRE.c,c("MRACT.c","MRPRE.c")])
 # check 
 PtInPoly(pnts=ed[,c("MRACT.c","MRPRE.c")], 
          poly.pnts=ed[cfull.MRACT.c.MRPRE.c,c("MRACT.c","MRPRE.c")]) 
-# all within, ok
-PtInPoly(pnts=rbind(ed[,c("MRACT.c","MRPRE.c")],
-                    data.frame(MRACT.c=c(-10,0,10),MRPRE.c=c(-20,-10,22))), 
+# all within, ok, looks at slightly displaced data
+PtInPoly(pnts=ed[,c("MRACT.c","MRPRE.c")]+ matrix(runif(2*dim(ed)[1],-.5,.5), ncol=2), 
          poly.pnts=ed[cfull.MRACT.c.MRPRE.c,c("MRACT.c","MRPRE.c")]) 
 # seems ok
 
@@ -62,7 +61,7 @@ BIC(lm1)
 BIC(lm2)
 # lm1 is also better based on BIC
 bplot(Predict(lm1), lfun=wireframe)
-# empty diagram, somethingdon't work
+# empty diagram, something doesn't work
 
 # trying to make predictions in the congruence line MRACT.c=MRPRE.c
 Predict.lm1 <- Predict(lm1)
@@ -71,11 +70,11 @@ summary(ed[,c("MRACT.c","MRPRE.c")])
 # trying within the common range within MRACT.c=MRPRE.c
 ddm
 ddmc <- ddm
-ddmc$limits[4:5,"MRACT.c"] # predikjonsgrenser, endrer
+ddmc$limits[4:5,"MRACT.c"] # prediction bounds, change
 ddmc$limits[4:5,"MRACT.c"] <- c(-11,13)
 ddmc$limits[4:5,"MRPRE.c"] <- c(-11,13)
 cbind(ddm$limits, ddmc$limits) # ok
-
+# model
 options(datadist="ddmc")
 lm1c <- ols(MRSAT~rcs(MRACT.c,4) + rcs(MRPRE.c,4) + 
               rcs(MRACT.c,4) %ia% rcs(MRPRE.c,4), 
@@ -156,7 +155,7 @@ points(x=preddata.lm1.congr$MRACT.c, y=preddata.lm1.congr$upper,
 # the model used is based on restricted cubic splines with 4 knots, by the 
 # two independent variables (grand mean centered), without higher order
 # interactions, using the R package rms
-max.incongr.f <- function(data, model, npoints=200, conf=.95,
+max.incongr.f <- function(data, model, npoints=200, conf=.95, 
          xlegend="first independent variable", 
          ylegend="second independent variable", zlegend="outcome") {
   names(data) <- c("X","Y","Z")
@@ -165,7 +164,11 @@ max.incongr.f <- function(data, model, npoints=200, conf=.95,
   data$Yc <- data$Y - grandmean
   grandmin <- max(min(data$Xc), min(data$Yc))
   grandmax <- min(max(data$Xc), max(data$Yc))
-  
+  # convex hull of Xc and Yc
+  chull.c <- chull(data[,c("Xc","Yc")])
+  # extend to closed polygon
+  cfull.c <- c(chull.c, chull.c[1])
+  # model
   mod <- ols(Z~rcs(Xc,4) + rcs(Yc,4) + rcs(Xc,4) %ia% rcs(Yc,4),
                 data=data, x=TRUE, y=TRUE)
   qt.mod <- qt((1+conf)/2, df=mod$df.residual)
@@ -173,12 +176,14 @@ max.incongr.f <- function(data, model, npoints=200, conf=.95,
   newdata.mod.congr <-
     data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
                Yc=seq(from=grandmin, to=grandmax, length.out=npoints))
+  inhull.mod.congr <- PtInPoly(pnts=newdata.mod.congr, 
+           poly.pnts=newdata.mod.congr[cfull.c,])[,3]
   predict.mod.congr <- predict(mod, newdata=newdata.mod.congr, se.fit=TRUE)
   preddata.mod.congr <- 
     cbind(newdata.mod.congr, pred=predict.mod.congr$lin,
           lower=predict.mod.congr$lin - qt.mod*predict.mod.congr$se.fit,
-          upper=predict.mod.congr$lin + qt.mod*predict.mod.congr$se.fit)
-  
+          upper=predict.mod.congr$lin + qt.mod*predict.mod.congr$se.fit,
+          inhull=inhull.mod.congr)
   # predicted along the main incongruence line
   newdata.mod.main.incongr <-
     data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
@@ -187,69 +192,92 @@ max.incongr.f <- function(data, model, npoints=200, conf=.95,
   newdata.mod.main.incongr <- newdata.mod.main.incongr[
     newdata.mod.main.incongr$Xc>=grandmin&newdata.mod.main.incongr$Xc<=grandmax&
       newdata.mod.main.incongr$Yc>=grandmin&newdata.mod.main.incongr$Yc<=grandmax,]
+  inhull.mod.main.incongr <- PtInPoly(pnts=newdata.mod.main.incongr, 
+                               poly.pnts=newdata.mod.main.incongr[cfull.MRACT.c.MRPRE.c,])[,3]
   predict.mod.main.incongr <- predict(mod, newdata=newdata.mod.main.incongr, se.fit=TRUE)
   preddata.mod.main.incongr <-
     cbind(newdata.mod.main.incongr, pred=predict.mod.main.incongr$lin,
           lower=predict.mod.main.incongr$lin - qt.mod*predict.mod.main.incongr$se.fit,
-          upper=predict.mod.main.incongr$lin + qt.mod*predict.mod.main.incongr$se.fit)
-          
+          upper=predict.mod.main.incongr$lin + qt.mod*predict.mod.main.incongr$se.fit,
+          inhull=inhull.mod.main.incongr)
+  # find maximum along each incongruence line
+  max.incongr <- rep(NA,npoints)
+  Xc.use <- seq(from=grandmin, to=grandmax, length.out=npoints)
+  for (pointnr in 1:npoints) {
+    Xc.point <- Xc.use[pointnr]
+    Yc.point <- Xc.use[pointnr]
+    Xc.point.incongr <- Xc.use
+    Yc.point.incongr <- 2*Xc.point - Xc.point.incongr
+    frame.point.incongr <- data.frame(Xc=Xc.point.incongr, Yc=Yc.point.incongr)
+    inhull.point.incongr <- 
+      PtInPoly(pnts=frame.point.incongr, 
+               poly.pnts=frame.point.incongr[cfull.c,])[,3]
+    if (sum(inhull.point.incongr)>1) {
+      frame.point.incongr.inhull <- frame.point.incongr[inhull.point.incongr==1,]
+      Xc.inhull.min <- min(frame.point.incongr.inhull$Xc)
+      Xc.inhull.max <- max(frame.point.incongr.inhull$Xc)
+      Xc.point.inhull.incongr <- seq(from=Xc.inhull.min, to=Xc.inhull.max, length.out=npoints)
+      Yc.point.inhull.incongr <- 2*Xc.point - Xc.point.inhull.incongr
+      newdata.point.inhull.incongr <- 
+        data.frame(Xc=Xc.point.inhull.incongr, Yc=Yc.point.inhull.incongr)
+      predict.mod.point.inhull.incongr <- predict(mod, newdata=newdata.point.inhull.incongr)
+      max.incongr[pointnr] <-max(predict.mod.point.inhull.incongr)
+    } # end if at least two points on the actual incongruence line within hull
+  } # end points
+  frame.points.incongr.max <- data.frame(Xc=Xc.use, max=max.incongr)
+  frame.points.incongr.max <- 
+    frame.points.incongr.max[is.na(frame.points.incongr.max$max)==0,]
   return(list(data=data, mod=mod, 
               xlegend=xlegend, ylegend=ylegend, zlegend=zlegend,
-              pred.congr=preddata.mod.congr, pred.main.incongr=preddata.mod.main.incongr))
+              pred.congr=preddata.mod.congr, pred.main.incongr=preddata.mod.main.incongr,
+              frame.points.incongr.max=frame.points.incongr.max))
 } # end function max.incongr.f
 
-# plotting functions for objects returned from max.incongr.f
-# plot along congruence line
-plot.congr <- function(max.incongr.obj) {
-  data <- max.incongr.obj$data
-  xlegend=max.incongr.obj$xlegend
-  ylegend=max.incongr.obj$ylegend
-  zlegend=max.incongr.obj$zlegend
-  preddata <- max.incongr.obj$pred.congr
-  plot(x=preddata$Xc, y=preddata$pred,
-             ylim=range(data$Z), las=1, type="l",
-             xlab=xlegend, ylab=zlegend)
-  points(x=preddata$Xc, y=preddata$lower,
-               lty="dotted", type="l")
-  points(x=preddata$Xc, y=preddata$upper,
-               lty="dotted", type="l")
-  } # end plot.congr
-# plot along the main incongruence line
-plot.congr <- function(max.incongr.obj) {
-  data <- max.incongr.obj$data
-  xlegend=max.incongr.obj$xlegend
-  ylegend=max.incongr.obj$ylegend
-  zlegend=max.incongr.obj$zlegend
-  preddata <- max.incongr.obj$pred.congr
-  plot(x=preddata$Xc, y=preddata$pred,
-       ylim=range(data$Z), las=1, type="l",
-       xlab=xlegend, ylab=zlegend)
-  points(x=preddata$Xc, y=preddata$lower,
-         lty="dotted", type="l")
-  points(x=preddata$Xc, y=preddata$upper,
-         lty="dotted", type="l")
-} # end plot.congr
 
-# plot along main incongruence line
-plot.main.incongr <- function(max.incongr.obj) {
+# plotting functions for objects returned from max.incongr.f
+# plot along congruence line, and along main inclongruence line
+plot.congr.maini <- function(max.incongr.obj, lwdhull=3, col.congr="black", 
+                             col.maini="red", col.maxi="blue") {
   data <- max.incongr.obj$data
   xlegend=max.incongr.obj$xlegend
   ylegend=max.incongr.obj$ylegend
   zlegend=max.incongr.obj$zlegend
-  preddata <- max.incongr.obj$pred.main.incongr
-  plot(x=preddata$Xc, y=preddata$pred,
-       ylim=range(data$Z), las=1, type="l",
-       xlab=xlegend, ylab=zlegend)
-  box()
-  points(x=preddata$Xc, y=preddata$lower,
-         lty="dotted", type="l")
-  points(x=preddata$Xc, y=preddata$upper,
-         lty="dotted", type="l")
-} # end plot.main.incongr
+  preddata.congr <- max.incongr.obj$pred.congr
+  preddata.maini <- max.incongr.obj$pred.main.incongr
+  maxframe <- max.incongr.obj$frame.points.incongr.max
+  # congruence line
+  plot(x=preddata.congr$Xc, y=preddata.congr$pred, las=1, type="l", 
+       xlim=range(data$Xc), ylim=range(data$Z), 
+       xlab=xlegend, ylab=zlegend, col=col.congr)
+  points(x=preddata.congr$Xc[preddata.congr$inhull==1], 
+         y=preddata.congr$pred[preddata.congr$inhull==1],
+         lty="dotted", type="l", col=col.congr, lwd=lwdhull)
+  points(x=preddata.congr$Xc, y=preddata.congr$lower,
+         lty="dotted", type="l", col=col.congr)
+  points(x=preddata.congr$Xc, y=preddata.congr$upper,
+         lty="dotted", type="l", col=col.congr)
+  # main incongruence line
+  points(x=preddata.maini$Xc, 
+         y=preddata.maini$pred,
+         type="l",xlab=xlegend, ylab=zlegend, col=col.maini)
+  points(x=preddata.maini$Xc[preddata.maini$inhull==1], 
+         y=preddata.maini$pred[preddata.maini$inhull==1],
+         type="l",xlab=xlegend, ylab=zlegend, col=col.maini, lwd=lwdhull)
+  points(x=preddata.maini$Xc, y=preddata.maini$lower,
+         lty="dotted", type="l", col=col.maini)
+  points(x=preddata.maini$Xc, y=preddata.maini$upper,
+         lty="dotted", type="l", col=col.maini)
+  # max at incongruence lines
+  points(x=maxframe$Xc, y=maxframe$max,
+         type="l",xlab=xlegend, ylab=zlegend, col=col.maxi)
+  # mark center
+  abline(v=0, lty="dotted")
+} # end plot.congr.maini
 
 max.incongr1 <- max.incongr.f((data=ed[,c("MRACT","MRPRE","MRSAT")])) 
 summary(max.incongr1$data)
 summary(max.incongr1$pred.congr)
 summary(max.incongr1$pred.main.incongr)
-plot.congr(max.incongr.obj=max.incongr1)
-plot.main.incongr(max.incongr.obj=max.incongr1)
+dim(max.incongr1$frame.points.incongr.max) # all 200 included
+summary(max.incongr1$frame.points.incongr.max)
+plot.congr.maini(max.incongr.obj=max.incongr1)
