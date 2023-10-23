@@ -179,7 +179,7 @@ max.incongr.f <- function(data, model="rcsia",
     data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
                Yc=seq(from=grandmin, to=grandmax, length.out=npoints))
   inhull.mod.congr <- PtInPoly(pnts=newdata.mod.congr, 
-           poly.pnts=newdata.mod.congr[cfull.c,])[,3]
+                               poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
   predict.mod.congr <- predict(mod, newdata=newdata.mod.congr, se.fit=TRUE)
   preddata.mod.congr <- 
     cbind(newdata.mod.congr, pred=predict.mod.congr$lin,
@@ -195,7 +195,7 @@ max.incongr.f <- function(data, model="rcsia",
     newdata.mod.main.incongr$Xc>=grandmin&newdata.mod.main.incongr$Xc<=grandmax&
       newdata.mod.main.incongr$Yc>=grandmin&newdata.mod.main.incongr$Yc<=grandmax,]
   inhull.mod.main.incongr <- PtInPoly(pnts=newdata.mod.main.incongr, 
-                               poly.pnts=newdata.mod.main.incongr[cfull.MRACT.c.MRPRE.c,])[,3]
+                               poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
   predict.mod.main.incongr <- predict(mod, newdata=newdata.mod.main.incongr, se.fit=TRUE)
   preddata.mod.main.incongr <-
     cbind(newdata.mod.main.incongr, pred=predict.mod.main.incongr$lin,
@@ -213,7 +213,7 @@ max.incongr.f <- function(data, model="rcsia",
     frame.point.incongr <- data.frame(Xc=Xc.point.incongr, Yc=Yc.point.incongr)
     inhull.point.incongr <- 
       PtInPoly(pnts=frame.point.incongr, 
-               poly.pnts=frame.point.incongr[cfull.c,])[,3]
+               poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
     if (sum(inhull.point.incongr)>1) {
       frame.point.incongr.inhull <- frame.point.incongr[inhull.point.incongr==1,]
       Xc.inhull.min <- min(frame.point.incongr.inhull$Xc)
@@ -250,8 +250,6 @@ max.incongr.f <- function(data, model="rcsia",
     preddata.incongr.show=preddata.mod.shownr.inhull.incongr,
     Xcshow=Xc.use[incongr.show.nr]))
 } # end function max.incongr.f
-max.incongr1 <- max.incongr.f((data=ed[,c("MRACT","MRPRE","MRSAT")])) # for check
-
 
 # plotting functions for objects returned from max.incongr.f
 # plot along congruence line, and along main inclongruence line
@@ -304,6 +302,26 @@ plot.congr.maini <- function(max.incongr.obj, lwdhull=3, col.congr="black",
   abline(v=Xcshow, lty="dotted", col=col.showi)
 } # end plot.congr.maini
 
+plot.congr.incongr.lines <- function(max.incongr.obj, pchuse=19,
+                                     cexuse=.5, col.congr="black", 
+                                     col.maini="red", col.showi="orange") {
+  data <- max.incongr.obj$data
+  preddata.congr <- max.incongr.obj$pred.congr
+  preddata.maini <- max.incongr.obj$pred.main.incongr
+  preddata.showi <- max.incongr.obj$preddata.incongr.show
+  Xcshow=max.incongr.obj$Xcshow
+  # convex hull
+  chulld <- chull(data[,c("Xc","Yc")])
+  # extend to closed polygon
+  cfulld <- c(chulld, chulld[1])
+  plot(data[,c("Xc","Yc")], pch=pchuse, cex=cexuse,
+       xlab="first independent", ylab="second independent")
+  lines(data[cfulld,c("Xc","Yc")])
+  lines(preddata.congr[,c("Xc","Yc")], type="l", col=col.congr)
+  lines(preddata.maini[,c("Xc","Yc")], type="l", col=col.maini)
+  lines(preddata.showi[,c("Xc","Yc")], type="l", col=col.showi)
+} # end plot.congr.incongr.lines
+
 max.incongr1 <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")])
 summary(max.incongr1$data)
 summary(max.incongr1$pred.congr)
@@ -313,17 +331,22 @@ summary(max.incongr1$frame.points.incongr.max)
 summary(max.incongr1$preddata.incongr.show)
 max.incongr1$Xcshow
 plot.congr.maini(max.incongr.obj=max.incongr1)
+plot.congr.incongr.lines(max.incongr1)
 # with other incongruence line to show
 max.incongr50 <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
                                incongr.show.nr=50)
 max.incongr50$Xcshow
 plot.congr.maini(max.incongr.obj=max.incongr50)
+plot.congr.incongr.lines(max.incongr50)
 max.incongr150 <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
                                incongr.show.nr=150)
 plot.congr.maini(max.incongr.obj=max.incongr150)
+plot.congr.incongr.lines(max.incongr150)
 max.incongr175 <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
                                 incongr.show.nr=175)
 plot.congr.maini(max.incongr.obj=max.incongr175)
+plot.congr.incongr.lines(max.incongr175)
 max.incongr190 <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
                                 incongr.show.nr=190)
 plot.congr.maini(max.incongr.obj=max.incongr190)
+plot.congr.incongr.lines(max.incongr190) # no incongruence line to show
