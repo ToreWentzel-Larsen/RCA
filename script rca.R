@@ -149,10 +149,36 @@ points(x=preddata.lm1.congr$MRACT.c, y=preddata.lm1.congr$upper,
 
 # quadratic model
 edquad <- ed
-lmq <- ols(MRSAT~rcs(MRACT.c,4)*rcs(MRPRE.c,4), 
-           data=ed, x=TRUE, y=TRUE)
+summary(edquad)
+edquad$MRACT.c2 <- edquad$MRACT.c^2
+edquad$MRACT.c.MRPRE.c <- edquad$MRACT.c*edquad$MRPRE.c
+edquad$MRPRE.c2 <- edquad$MRPRE.c^2
+summary(edquad)
+lmq <- ols(MRSAT~MRACT.c+MRPRE.c+MRACT.c2+MRACT.c.MRPRE.c+MRPRE.c2, 
+           data=edquad, x=TRUE, y=TRUE)
+lmq
+edcub <- edquad
+edcub$MRACT.c3 <- edcub$MRACT.c^3
+edcub$MRACT.c2.MRPRE.c <- edcub$MRPRE.c*edcub$MRACT.c^2
+edcub$MRACT.c.MRPRE.c2 <- edcub$MRACT.c*edcub$MRPRE.c^2
+edcub$MRPRE.c3 <- edcub$MRPRE.c^3
+lmc <- ols(MRSAT~MRACT.c+MRPRE.c+MRACT.c2+MRACT.c.MRPRE.c+MRPRE.c2+
+             MRACT.c3+MRACT.c2.MRPRE.c+MRACT.c.MRPRE.c2+MRPRE.c3, 
+           data=edcub, x=TRUE, y=TRUE)
+lmc
 
-
+# AIC
+AIC(lm1) 
+AIC(lm2) 
+AIC(lmq)
+AIC(lmc)
+# lmq better, lm1 next
+# BIC
+BIC(lm1) 
+BIC(lm2) 
+BIC(lmq)
+BIC(lmc)
+# lmq best, lmc next
 
 # function for finding the combination with max predicted value at each
 # line of incongruence, for the selected number of means for the independent
@@ -320,7 +346,199 @@ max.incongr.f <- function(data, model="rcsia",
     frame.points.incongr.max <- 
       frame.points.incongr.max[is.na(frame.points.incongr.max$max)==0,]
   } # end if model=="rcs"
-  
+  if (model=="quadratic") {
+    data$Xc2 <-data$Xc^2
+    data$XcYc <- data$Xc*data$Yc
+    data$Yc2 <- data$Yc^2
+    mod <- ols(Z~Xc+Yc+Xc2+XcYc+Yc2,
+               data=data, x=TRUE, y=TRUE)
+    qt.mod <- qt((1+conf)/2, df=mod$df.residual)
+    # predicted along the congruence line
+    newdata.mod.congr <-
+      data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
+                 Yc=seq(from=grandmin, to=grandmax, length.out=npoints),
+                 Xc2=seq(from=grandmin, to=grandmax, length.out=npoints)^2,
+                 XcYc=seq(from=grandmin, to=grandmax, length.out=npoints)^2,
+                 Yc2=seq(from=grandmin, to=grandmax, length.out=npoints)^2)
+    inhull.mod.congr <- PtInPoly(pnts=newdata.mod.congr[,c("Xc","Yc")], 
+                                 poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
+    predict.mod.congr <- predict(mod, newdata=newdata.mod.congr, se.fit=TRUE)
+    preddata.mod.congr <- 
+      cbind(newdata.mod.congr[,c("Xc","Yc")], pred=predict.mod.congr$lin,
+            lower=predict.mod.congr$lin - qt.mod*predict.mod.congr$se.fit,
+            upper=predict.mod.congr$lin + qt.mod*predict.mod.congr$se.fit,
+            inhull=inhull.mod.congr)
+    # predicted along the main incongruence line
+    newdata.mod.main.incongr <-
+      data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
+                 Yc=-seq(from=grandmin, to=grandmax, length.out=npoints))
+    newdata.mod.main.incongr$Xc2 <- newdata.mod.main.incongr$Xc^2
+    newdata.mod.main.incongr$XcYc <- newdata.mod.main.incongr$Xc*
+      newdata.mod.main.incongr$Yc
+    newdata.mod.main.incongr$Yc2 <- newdata.mod.main.incongr$Yc^2
+    # restrict main incongruence line to Xc and Yc within grandmin and grandmax
+    newdata.mod.main.incongr <- newdata.mod.main.incongr[
+      newdata.mod.main.incongr$Xc>=grandmin&newdata.mod.main.incongr$Xc<=grandmax&
+        newdata.mod.main.incongr$Yc>=grandmin&newdata.mod.main.incongr$Yc<=grandmax,]
+    inhull.mod.main.incongr <- PtInPoly(pnts=newdata.mod.main.incongr[,c("Xc","Yc")], 
+                                        poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
+    predict.mod.main.incongr <- predict(mod, newdata=newdata.mod.main.incongr, se.fit=TRUE)
+    preddata.mod.main.incongr <-
+      cbind(newdata.mod.main.incongr[,c("Xc","Yc")], pred=predict.mod.main.incongr$lin,
+            lower=predict.mod.main.incongr$lin - qt.mod*predict.mod.main.incongr$se.fit,
+            upper=predict.mod.main.incongr$lin + qt.mod*predict.mod.main.incongr$se.fit,
+            inhull=inhull.mod.main.incongr)
+    # find maximum along each incongruence line
+    max.incongr <- rep(NA,npoints)
+    Xc.use <- seq(from=grandmin, to=grandmax, length.out=npoints)
+    for (pointnr in 1:npoints) {
+      Xc.point <- Xc.use[pointnr]
+      Yc.point <- Xc.use[pointnr]
+      Xc.point.incongr <- Xc.use
+      Yc.point.incongr <- 2*Xc.point - Xc.point.incongr
+      frame.point.incongr <- data.frame(Xc=Xc.point.incongr, Yc=Yc.point.incongr)
+      inhull.point.incongr <- 
+        PtInPoly(pnts=frame.point.incongr, 
+                 poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
+      if (sum(inhull.point.incongr)>1) {
+        frame.point.incongr.inhull <- frame.point.incongr[inhull.point.incongr==1,]
+        Xc.inhull.min <- min(frame.point.incongr.inhull$Xc)
+        Xc.inhull.max <- max(frame.point.incongr.inhull$Xc)
+        Xc.point.inhull.incongr <- seq(from=Xc.inhull.min, to=Xc.inhull.max, length.out=npoints)
+        Yc.point.inhull.incongr <- 2*Xc.point - Xc.point.inhull.incongr
+        newdata.point.inhull.incongr <- 
+          data.frame(Xc=Xc.point.inhull.incongr, Yc=Yc.point.inhull.incongr)
+        newdata.point.inhull.incongr$Xc2 <- newdata.point.inhull.incongr$Xc^2
+        newdata.point.inhull.incongr$XcYc <- newdata.point.inhull.incongr$Xc*
+          newdata.point.inhull.incongr$Yc
+        newdata.point.inhull.incongr$Yc2 <- newdata.point.inhull.incongr$Yc^2
+        predict.mod.point.inhull.incongr <- 
+          predict(mod, newdata=newdata.point.inhull.incongr)
+        max.incongr[pointnr] <- max(predict.mod.point.inhull.incongr)
+        if (pointnr==incongr.show.nr) {
+          predict.mod.point.inhull.incongr.se <- 
+            predict(mod, newdata=newdata.point.inhull.incongr, se.fit=TRUE)
+          preddata.mod.shownr.inhull.incongr <-
+            cbind(newdata.point.inhull.incongr[,c("Xc","Yc")], 
+                  pred=predict.mod.point.inhull.incongr.se$lin,
+                  lower=predict.mod.point.inhull.incongr.se$lin - 
+                    qt.mod*predict.mod.point.inhull.incongr.se$se.fit,
+                  upper=predict.mod.point.inhull.incongr.se$lin + 
+                    qt.mod*predict.mod.point.inhull.incongr.se$se.fit)
+        } # end if the incongruence line to show
+      } # end if at least two points on the actual incongruence line within hull
+    } # end points
+    frame.points.incongr.max <- data.frame(Xc=Xc.use, max=max.incongr)
+    frame.points.incongr.max <- 
+      frame.points.incongr.max[is.na(frame.points.incongr.max$max)==0,]
+  } # end if model=="quadratic"
+  if (model=="cubic") {
+    data$Xc2 <-data$Xc^2
+    data$XcYc <- data$Xc*data$Yc
+    data$Yc2 <- data$Yc^2
+    data$Xc3 <-data$Xc^3
+    data$Xc2Yc <- data$Yc*data$Xc^2
+    data$XcYc2 <- data$Xc*data$Yc^2
+    data$Yc3 <- data$Yc^3
+    mod <- ols(Z~Xc+Yc+Xc2+XcYc+Yc2+Xc3+Xc2Yc+XcYc2+Yc3,
+               data=data, x=TRUE, y=TRUE)
+    qt.mod <- qt((1+conf)/2, df=mod$df.residual)
+    # predicted along the congruence line
+    newdata.mod.congr <-
+      data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
+                 Yc=seq(from=grandmin, to=grandmax, length.out=npoints),
+                 Xc2=seq(from=grandmin, to=grandmax, length.out=npoints)^2,
+                 XcYc=seq(from=grandmin, to=grandmax, length.out=npoints)^2,
+                 Yc2=seq(from=grandmin, to=grandmax, length.out=npoints)^2,
+                 Xc3=seq(from=grandmin, to=grandmax, length.out=npoints)^3,
+                 Xc2Yc=seq(from=grandmin, to=grandmax, length.out=npoints)^3,
+                 XcYc2=seq(from=grandmin, to=grandmax, length.out=npoints)^3,
+                 Yc3=seq(from=grandmin, to=grandmax, length.out=npoints)^3)
+    inhull.mod.congr <- PtInPoly(pnts=newdata.mod.congr[,c("Xc","Yc")], 
+                                 poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
+    predict.mod.congr <- predict(mod, newdata=newdata.mod.congr, se.fit=TRUE)
+    preddata.mod.congr <- 
+      cbind(newdata.mod.congr[,c("Xc","Yc")], pred=predict.mod.congr$lin,
+            lower=predict.mod.congr$lin - qt.mod*predict.mod.congr$se.fit,
+            upper=predict.mod.congr$lin + qt.mod*predict.mod.congr$se.fit,
+            inhull=inhull.mod.congr)
+    # predicted along the main incongruence line
+    newdata.mod.main.incongr <-
+      data.frame(Xc=seq(from=grandmin, to=grandmax, length.out=npoints),
+                 Yc=-seq(from=grandmin, to=grandmax, length.out=npoints))
+    newdata.mod.main.incongr$Xc2 <- newdata.mod.main.incongr$Xc^2
+    newdata.mod.main.incongr$XcYc <- newdata.mod.main.incongr$Xc*
+      newdata.mod.main.incongr$Yc
+    newdata.mod.main.incongr$Yc2 <- newdata.mod.main.incongr$Yc^2
+    newdata.mod.main.incongr$Xc3 <- newdata.mod.main.incongr$Xc^3
+    newdata.mod.main.incongr$Xc2Yc <- newdata.mod.main.incongr$Yc*
+      newdata.mod.main.incongr$Xc^2
+    newdata.mod.main.incongr$XcYc2 <- newdata.mod.main.incongr$Xc*
+      newdata.mod.main.incongr$Yc^2
+    newdata.mod.main.incongr$Yc3 <- newdata.mod.main.incongr$Yc^3
+    # restrict main incongruence line to Xc and Yc within grandmin and grandmax
+    newdata.mod.main.incongr <- newdata.mod.main.incongr[
+      newdata.mod.main.incongr$Xc>=grandmin&newdata.mod.main.incongr$Xc<=grandmax&
+        newdata.mod.main.incongr$Yc>=grandmin&newdata.mod.main.incongr$Yc<=grandmax,]
+    inhull.mod.main.incongr <- PtInPoly(pnts=newdata.mod.main.incongr[,c("Xc","Yc")], 
+                                        poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
+    predict.mod.main.incongr <- predict(mod, newdata=newdata.mod.main.incongr, se.fit=TRUE)
+    preddata.mod.main.incongr <-
+      cbind(newdata.mod.main.incongr[,c("Xc","Yc")], pred=predict.mod.main.incongr$lin,
+            lower=predict.mod.main.incongr$lin - qt.mod*predict.mod.main.incongr$se.fit,
+            upper=predict.mod.main.incongr$lin + qt.mod*predict.mod.main.incongr$se.fit,
+            inhull=inhull.mod.main.incongr)
+    # find maximum along each incongruence line
+    max.incongr <- rep(NA,npoints)
+    Xc.use <- seq(from=grandmin, to=grandmax, length.out=npoints)
+    for (pointnr in 1:npoints) {
+      Xc.point <- Xc.use[pointnr]
+      Yc.point <- Xc.use[pointnr]
+      Xc.point.incongr <- Xc.use
+      Yc.point.incongr <- 2*Xc.point - Xc.point.incongr
+      frame.point.incongr <- data.frame(Xc=Xc.point.incongr, Yc=Yc.point.incongr)
+      inhull.point.incongr <- 
+        PtInPoly(pnts=frame.point.incongr, 
+                 poly.pnts=data[cfull.c,c("Xc","Yc")])[,3]
+      if (sum(inhull.point.incongr)>1) {
+        frame.point.incongr.inhull <- frame.point.incongr[inhull.point.incongr==1,]
+        Xc.inhull.min <- min(frame.point.incongr.inhull$Xc)
+        Xc.inhull.max <- max(frame.point.incongr.inhull$Xc)
+        Xc.point.inhull.incongr <- seq(from=Xc.inhull.min, to=Xc.inhull.max, length.out=npoints)
+        Yc.point.inhull.incongr <- 2*Xc.point - Xc.point.inhull.incongr
+        newdata.point.inhull.incongr <- 
+          data.frame(Xc=Xc.point.inhull.incongr, Yc=Yc.point.inhull.incongr)
+        newdata.point.inhull.incongr$Xc2 <- newdata.point.inhull.incongr$Xc^2
+        newdata.point.inhull.incongr$XcYc <- newdata.point.inhull.incongr$Xc*
+          newdata.point.inhull.incongr$Yc
+        newdata.point.inhull.incongr$Yc2 <- newdata.point.inhull.incongr$Yc^2
+        newdata.point.inhull.incongr$Xc3 <- newdata.point.inhull.incongr$Xc^3
+        newdata.point.inhull.incongr$Xc2Yc <- newdata.point.inhull.incongr$Yc*
+          newdata.point.inhull.incongr$Xc^2
+        newdata.point.inhull.incongr$XcYc2 <- newdata.point.inhull.incongr$Xc*
+          newdata.point.inhull.incongr$Yc^2
+        newdata.point.inhull.incongr$Yc3 <- newdata.point.inhull.incongr$Yc^3
+        predict.mod.point.inhull.incongr <- 
+          predict(mod, newdata=newdata.point.inhull.incongr)
+        max.incongr[pointnr] <- max(predict.mod.point.inhull.incongr)
+        if (pointnr==incongr.show.nr) {
+          predict.mod.point.inhull.incongr.se <- 
+            predict(mod, newdata=newdata.point.inhull.incongr, se.fit=TRUE)
+          preddata.mod.shownr.inhull.incongr <-
+            cbind(newdata.point.inhull.incongr[,c("Xc","Yc")], 
+                  pred=predict.mod.point.inhull.incongr.se$lin,
+                  lower=predict.mod.point.inhull.incongr.se$lin - 
+                    qt.mod*predict.mod.point.inhull.incongr.se$se.fit,
+                  upper=predict.mod.point.inhull.incongr.se$lin + 
+                    qt.mod*predict.mod.point.inhull.incongr.se$se.fit)
+        } # end if the incongruence line to show
+      } # end if at least two points on the actual incongruence line within hull
+    } # end points
+    frame.points.incongr.max <- data.frame(Xc=Xc.use, max=max.incongr)
+    frame.points.incongr.max <- 
+      frame.points.incongr.max[is.na(frame.points.incongr.max$max)==0,]
+  } # end if model=="cubic"
+
   return(list(
     data=data, mod=mod, 
     xlegend=xlegend, ylegend=ylegend, zlegend=zlegend,
@@ -480,5 +698,56 @@ max.incongr190.rcs <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
 plot.congr.maini(max.incongr.obj=max.incongr190.rcs)
 plot.congr.incongr.lines(max.incongr190.rcs) # no incongruence line to show
 
+# response congruence assessments for the example data, model type quadratic
+max.incongr1.quad <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                   model="quadratic")
+plot.congr.maini(max.incongr.obj=max.incongr1.quad)
+plot.congr.incongr.lines(max.incongr1.quad)
+# with other incongruence line to show
+max.incongr50.quad <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                    incongr.show.nr=50, model="quadratic")
+plot.congr.maini(max.incongr.obj=max.incongr50.quad)
+plot.congr.incongr.lines(max.incongr50.quad)
+max.incongr20.quad <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                    incongr.show.nr=20, model="quadratic")
+plot.congr.maini(max.incongr.obj=max.incongr20.quad)
+plot.congr.incongr.lines(max.incongr20.quad)
+max.incongr150.quad <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                     incongr.show.nr=150, model="quadratic")
+plot.congr.maini(max.incongr.obj=max.incongr150.quad)
+plot.congr.incongr.lines(max.incongr150.quad)
+max.incongr175.quad <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                     incongr.show.nr=175, model="quadratic")
+plot.congr.maini(max.incongr.obj=max.incongr175.quad)
+plot.congr.incongr.lines(max.incongr175.quad)
+max.incongr190.quad <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                     incongr.show.nr=190, model="quadratic")
+plot.congr.maini(max.incongr.obj=max.incongr190.quad)
+plot.congr.incongr.lines(max.incongr190.quad) # no incongruence line to show
 
-
+# response congruence assessments for the example data, model type cubic
+max.incongr1.cubic <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                    model="cubic")
+plot.congr.maini(max.incongr.obj=max.incongr1.cubic)
+plot.congr.incongr.lines(max.incongr1.cubic)
+# with other incongruence line to show
+max.incongr50.cubic <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                     incongr.show.nr=50, model="cubic")
+plot.congr.maini(max.incongr.obj=max.incongr50.cubic)
+plot.congr.incongr.lines(max.incongr50.cubic)
+max.incongr20.cubic <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                     incongr.show.nr=20, model="cubic")
+plot.congr.maini(max.incongr.obj=max.incongr20.cubic)
+plot.congr.incongr.lines(max.incongr20.cubic)
+max.incongr150.cubic <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                      incongr.show.nr=150, model="cubic")
+plot.congr.maini(max.incongr.obj=max.incongr150.cubic)
+plot.congr.incongr.lines(max.incongr150.cubic)
+max.incongr175.cubic <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                      incongr.show.nr=175, model="cubic")
+plot.congr.maini(max.incongr.obj=max.incongr175.cubic)
+plot.congr.incongr.lines(max.incongr175.cubic)
+max.incongr190.cubic <- max.incongr.f(data=ed[,c("MRACT","MRPRE","MRSAT")],
+                                      incongr.show.nr=190, model="cubic")
+plot.congr.maini(max.incongr.obj=max.incongr190.cubic)
+plot.congr.incongr.lines(max.incongr190.cubic) # no incongruence line to show
