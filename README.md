@@ -21,6 +21,8 @@ The development of RCA will start with models for data with independent observat
 Instructions for downloading the (so far) main example data file mba_csv.csv, taken from supplementary material to the article Cubic Response Surface Analysis: Investigating Asymmetric and Level-Dependent Congruence Effects With Third-Order Polynomial Models, by Humberg et al. Also see the article The study of congruence in organizational behavior research: Critique and a proposed alternative) by 
 Jeffrey R. Edwards, 1994. Download files for this article in http://public.kenan-flagler.unc.edu/faculty/edwardsj/downloads.htm , and save the Excel file mba as a csv file mba_csv.csv with semicolon as deliminator, in the same folder as the R script script rca.r made available in this repo. The script is at present preliminary and under work.
 
+A word file with first results is included.
+
 References
 
 
